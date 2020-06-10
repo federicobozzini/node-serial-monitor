@@ -6,11 +6,27 @@ export interface CloseEvent {
     message: string,
 }
 
-main();
-
 const log = (msg: string) => {
     console.log(msg);
 };
+
+const retry = async <T>(f: () => Promise<T>, times: number, timeout: number): Promise<T> => {
+    const wait = async (t: number) => new Promise<void>(resolve => setTimeout(resolve, t));
+    let i = 0;
+    while (i++ < times) {
+        try {
+            const res = await f();
+            console.log('ok');
+            return res;
+        } catch (e) {
+            log(`Error: ${e.message}`);
+        }
+        await wait(timeout);
+    }
+    return Promise.reject();
+}
+
+main();
 
 async function main() {
 
@@ -36,16 +52,19 @@ async function main() {
     });
 
     port.on('close', (event: CloseEvent) => {
-        log('closing...');
+        log(`closing connection to ${path}...`);
         port.removeAllListeners();
     });
+
     port.on('error', (error: Error) => {
         log('error!');
         log(error.toString());
         port.removeAllListeners();
     });
 
-    await new Promise<void>((resolve, reject) => {
+    const times = 1000;
+    const timeout = 5 * 1000; // 5 second
+    const connect = () => new Promise<void>((resolve, reject) => {
         if (port.isOpen) {
             resolve();
             return;
@@ -58,8 +77,14 @@ async function main() {
                 resolve();
             }
         });
-    }).catch((err: Error) => {
-        log(err.message);
     });
+
+    await retry(() => connect(), times, timeout)
+        .then(() => {
+            log(`Connection to ${path} was successful`);
+        })
+        .catch((err: Error) => {
+            log(`Failed to connect to serial port ${path}`);
+        });
 
 }
