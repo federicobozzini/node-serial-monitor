@@ -20,7 +20,8 @@
   "homepage": "https://github.com/federicobozzini/node-serial#readme",
   "dependencies": {
     "@types/serialport": "^8.0.1",
-    "serialport": "^9.0.0"
+    "serialport": "^9.0.0",
+    "usb-detection": "^4.9.0"
   },
   "devDependencies": {
     "@types/node": "^14.0.13",
