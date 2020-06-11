@@ -7,6 +7,7 @@ export interface CloseEvent {
     message: string,
 }
 
+// option to change to see the bug
 const useFix = true;
 
 const log = (msg: string) => {
