@@ -7,15 +7,22 @@ export interface CloseEvent {
     message: string,
 }
 
+const useFix = true;
+
 const log = (msg: string) => {
     console.log(msg);
 };
 
 const wait = (t: number): Promise<void> => new Promise<void>(resolve => setTimeout(resolve, t));
 
+let stopRetry = false;
+
 const retry = async <T>(f: () => Promise<T>, times: number, timeout: number): Promise<T> => {
     let i = 0;
     while (i++ < times) {
+        if (stopRetry) {
+            return Promise.reject();
+        }
         try {
             const res = await f();
             return res;
@@ -30,9 +37,12 @@ const retry = async <T>(f: () => Promise<T>, times: number, timeout: number): Pr
 const compareSerialNumbers = (serialNumber1: string, serialNumber2: string) =>
     serialNumber1.toLocaleLowerCase() === serialNumber2.toLocaleLowerCase();
 
-let port: SerialPort;
+let port: SerialPort | undefined;
 
 const startSerialMonitor = async (serialNumber: string): Promise<void> => {
+    stopRetry = false;
+    const reconnectionTimeout = useFix ? 2000 : 0;
+    await wait(reconnectionTimeout);
     log(`Starting serial monitor for ${serialNumber}`)
     const options: SerialPort.OpenOptions = {
         baudRate: 9600,
@@ -72,20 +82,24 @@ const startSerialMonitor = async (serialNumber: string): Promise<void> => {
     });
 
     port.on('close', (event: CloseEvent) => {
-        log(`closing connection to ${path}...`);
-        port.removeAllListeners();
+        log(`Connection to ${path} was closed`);
+        stopRetry = true;
+        port?.removeAllListeners();
+        port = undefined;
     });
 
     port.on('error', (error: Error) => {
         log('error!');
         log(error.toString());
-        port.removeAllListeners();
+        stopRetry = true;
+        port?.removeAllListeners();
+        port = undefined;
     });
 
     const retryConnectTimes = 1000;
     const retryConnectTimeout = 5 * 1000; // 5 second
     const connect = () => new Promise<void>((resolve, reject) => {
-        if (port.isOpen) {
+        if (port?.isOpen) {
             if (port.path === path) {
                 log(`Connection to ${path} was already open`);
                 resolve();
@@ -95,7 +109,7 @@ const startSerialMonitor = async (serialNumber: string): Promise<void> => {
                 return;
             }
         }
-        port.open((error: Error | null | undefined) => {
+        port?.open((error: Error | null | undefined) => {
             if (error) {
                 reject(error);
                 return;
@@ -117,7 +131,8 @@ const startSerialMonitor = async (serialNumber: string): Promise<void> => {
 };
 
 const stopSerialMonitor = async () => {
-    if (!port.isOpen) {
+    stopRetry = true;
+    if (!port || port.isOpen) {
         return;
     }
     port.close();
