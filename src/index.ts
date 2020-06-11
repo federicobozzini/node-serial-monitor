@@ -27,9 +27,13 @@ const retry = async <T>(f: () => Promise<T>, times: number, timeout: number): Pr
     return Promise.reject();
 }
 
+const compareSerialNumbers = (serialNumber1: string, serialNumber2: string) =>
+    serialNumber1.toLocaleLowerCase() === serialNumber2.toLocaleLowerCase();
+
 let port: SerialPort;
 
 const startSerialMonitor = async (serialNumber: string): Promise<void> => {
+    log(`Starting serial monitor for ${serialNumber}`)
     const options: SerialPort.OpenOptions = {
         baudRate: 9600,
         autoOpen: false,
@@ -63,7 +67,7 @@ const startSerialMonitor = async (serialNumber: string): Promise<void> => {
         parser.on('data', data => {
             data = decoder.decode(data);
             data = data.replace(/\n/g, '\r\n');
-            log(data);
+            process.stdout.write(data);
         });
     });
 
@@ -82,8 +86,14 @@ const startSerialMonitor = async (serialNumber: string): Promise<void> => {
     const retryConnectTimeout = 5 * 1000; // 5 second
     const connect = () => new Promise<void>((resolve, reject) => {
         if (port.isOpen) {
-            resolve();
-            return;
+            if (port.path === path) {
+                log(`Connection to ${path} was already open`);
+                resolve();
+                return;
+            } else {
+                reject(new Error(`Trying to connect to ${path}, but there is already a connection to ${port.path}`));
+                return;
+            }
         }
         port.open((error: Error | null | undefined) => {
             if (error) {
@@ -97,7 +107,7 @@ const startSerialMonitor = async (serialNumber: string): Promise<void> => {
 
     const retryConnect = async () => {
         try {
-            await retry(() => connect(), retryConnectTimes, retryConnectTimeout);            
+            await retry(() => connect(), retryConnectTimes, retryConnectTimeout);
             log(`Connection to ${path} was successful`);
         } catch (e) {
             log(`Failed to connect to serial port ${path}`);
@@ -115,7 +125,7 @@ const stopSerialMonitor = async () => {
 
 const getSerialPath = async (serialNumber: string): Promise<string | undefined> => {
     const ports = await SerialPort.list();
-    const portInfo = ports.find(p => p.serialNumber?.toLocaleLowerCase() === serialNumber.toLocaleLowerCase());
+    const portInfo = ports.find(p => p.serialNumber && compareSerialNumbers(p.serialNumber, serialNumber));
     return portInfo?.path;
 };
 
@@ -135,7 +145,7 @@ async function main() {
         if (!d.serialNumber) {
             continue;
         }
-        if (d.serialNumber !== SERIALNUMBER) {
+        if (!compareSerialNumbers(d.serialNumber, SERIALNUMBER)) {
             continue;
         }
         await startSerialMonitor(d.serialNumber);
