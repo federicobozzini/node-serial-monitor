@@ -5,7 +5,7 @@
   "main": "src/index.ts",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "npm run start:dev",
+    "start": "npm run start:dev -- ",
     "start:dev": "nodemon",
     "build": "rimraf ./build && tsc",
     "debug": "npm run build && DEBUG=* node build/index.js"
@@ -21,10 +21,12 @@
   },
   "homepage": "https://github.com/federicobozzini/node-serial#readme",
   "dependencies": {
+    "minimist": "^1.2.5",
     "serialport": "^9.0.0",
     "usb-detection": "^4.9.0"
   },
   "devDependencies": {
+    "@types/minimist": "^1.2.0",
     "@types/node": "^14.0.13",
     "@types/serialport": "^8.0.1",
     "nodemon": "^2.0.4",

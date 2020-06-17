@@ -1,14 +1,21 @@
 import * as SerialPort from 'serialport';
 import * as usbDetect from 'usb-detection';
 import { TextDecoder } from 'util';
+import * as minimist from 'minimist';
 
-export interface CloseEvent {
+interface CloseEvent {
     disconnected: boolean,
     message: string,
 }
 
-// option to change to see the bug
-const useFix = true;
+interface Params {
+    timeout?: number,
+    target?: string
+}
+
+const argv: minimist.ParsedArgs & Params = minimist(process.argv.slice(2));
+const reconnectionTimeout = argv.timeout || 0;
+const targetSerialNumber = argv.target; 
 
 const log = (msg: string) => {
     console.log(msg);
@@ -42,7 +49,6 @@ let port: SerialPort | undefined;
 
 const startSerialMonitor = async (serialNumber: string): Promise<void> => {
     stopRetry = false;
-    const reconnectionTimeout = useFix ? 2000 : 0;
     await wait(reconnectionTimeout);
     log(`Starting serial monitor for ${serialNumber}`)
     const options: SerialPort.OpenOptions = {
@@ -153,18 +159,15 @@ async function main() {
 
     usbDetect.on('add', async (device: usbDetect.Device) => await startSerialMonitor(device.serialNumber));
     usbDetect.on('remove', async () => await stopSerialMonitor());
-    const devices = await usbDetect.find();
 
-    // hardcoded serial number
-    const SERIALNUMBER = '0240000030514E45004520067D7E00471F91000097969900';
-    for (const d of devices) {
-        if (!d.serialNumber) {
-            continue;
+    if (targetSerialNumber) {
+        const devices = await usbDetect.find();
+        for (const d of devices) {
+            if (!compareSerialNumbers(d.serialNumber, targetSerialNumber)) {
+                continue;
+            }
+            await startSerialMonitor(d.serialNumber);
         }
-        if (!compareSerialNumbers(d.serialNumber, SERIALNUMBER)) {
-            continue;
-        }
-        await startSerialMonitor(d.serialNumber);
     }
 
 }
